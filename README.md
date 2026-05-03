@@ -122,7 +122,7 @@ Releases are published to npm via OIDC trusted publishing — no `NPM_TOKEN` req
 
 **First publish (one-time, manual):**
 
-The npm trusted-publisher settings page only appears for packages that already exist on npmjs.com. So v0.1.0 must be published manually from a local machine:
+The npm trusted-publisher settings page only appears for packages that already exist on npmjs.com, so the very first version of this package must be published manually from a local machine — even if you've already pushed a `v*` tag and the publish workflow ran. Bump or set `package.json` to whatever version you want to bootstrap with, then:
 
 ```bash
 npm login
@@ -147,6 +147,21 @@ git push --follow-tags
 ```
 
 The `Publish to npm` workflow will run on the new `v*` tag, verify the tag matches `package.json`, build, and publish with provenance.
+
+### Troubleshooting
+
+**`npm error 404 ... is not in this registry` from the publish workflow.**
+You pushed a `v*` tag for a package npm has never seen. Trusted publishing only authorizes pushes to packages that already exist on the registry, so npm rejects the `PUT` with a 404 even though the OIDC handshake and provenance signing both succeeded. The pre-flight check in `publish.yml` catches this case and prints a pointer back to this section, but if you bypass it (or it's an older copy of the workflow), recover with:
+
+```bash
+git pull --ff-only origin main      # so you publish what CI built from
+npm publish --access public         # no --provenance — that requires CI's OIDC
+```
+
+You don't need to delete or re-create the git tag. The next release (`npm version patch && git push --follow-tags`) goes through the workflow normally once the trusted publisher is configured on npmjs.com.
+
+**Sigstore log entry from the failed run is harmless.**
+If the workflow signed a provenance attestation before npm rejected the publish, you'll see a `https://search.sigstore.dev/?logIndex=…` line in the log. That's an immutable public attestation that GitHub Actions built that version from this repo at that SHA — it's not bound to anything since the publish failed and there's nothing to clean up.
 
 ## License
 

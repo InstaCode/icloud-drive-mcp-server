@@ -36,6 +36,34 @@ jobs:
             exit 1
           fi
 
+      - name: Pre-flight — confirm package exists on npm
+        # Trusted publishing only authorizes pushes to packages that already
+        # exist on the registry. The very first version has to be published
+        # manually from a logged-in machine to bootstrap the package on npm.
+        # Running this workflow before that bootstrap will fail with an opaque
+        # 404 from npm AFTER signing a provenance attestation; this guard
+        # surfaces the actual problem before any signing happens.
+        run: |
+          PKG="$(node -p "require('./package.json').name")"
+          if ! npm view "$PKG" name --silent > /dev/null 2>&1; then
+            cat <<EOF
+          ::error::Package "$PKG" does not yet exist on npm.
+
+          Trusted publishing requires the package to already exist on the registry.
+          Bootstrap it once from a logged-in local machine:
+
+            npm login
+            npm publish --access public
+
+          Then configure the trusted publisher at:
+            https://www.npmjs.com/package/$PKG → Settings → Trusted Publishers
+
+          See the "Publishing → Troubleshooting" section of the README for details.
+          EOF
+            exit 1
+          fi
+          echo "OK: $PKG exists on npm — proceeding."
+
       - name: Install
         run: npm ci
 
