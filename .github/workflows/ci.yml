@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        node: [18, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Stdio smoke test
+        run: |
+          # Boot the server, send initialize + tools/list, expect 9 tools registered.
+          # Use /tmp as a guaranteed-existing root so startup validation passes on CI.
+          tools=$(
+            (printf '%s\n' \
+              '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+              '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' \
+              '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+            ) | ICLOUD_MCP_ROOT=/tmp node dist/index.js 2>/dev/null \
+              | node -e "
+                  let buf = '';
+                  process.stdin.on('data', c => buf += c);
+                  process.stdin.on('end', () => {
+                    for (const line of buf.split('\n')) {
+                      if (!line.trim()) continue;
+                      const msg = JSON.parse(line);
+                      if (msg.id === 2) {
+                        console.log(msg.result.tools.length);
+                        process.exit(0);
+                      }
+                    }
+                    process.exit(1);
+                  });
+                "
+          )
+          echo "Registered tools: $tools"
+          test "$tools" = "9"

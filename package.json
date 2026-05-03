@@ -1,0 +1,62 @@
+{
+  "name": "@instacodeio/icloud-drive-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for iCloud Drive on macOS — Spotlight search, Finder tags, .icloud placeholder handling, and safe Trash-based deletion.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "icloud-drive-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "keywords": [
+    "mcp",
+    "icloud",
+    "icloud-drive",
+    "macos",
+    "spotlight"
+  ],
+  "author": "Jason Edstrom <jason@instacode.io>",
+  "license": "MIT",
+  "homepage": "https://github.com/InstaCode/icloud-drive-mcp-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InstaCode/icloud-drive-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/InstaCode/icloud-drive-mcp-server/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "bplist-creator": "^0.1.1",
+    "bplist-parser": "^0.3.2",
+    "trash": "^9.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
