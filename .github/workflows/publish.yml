@@ -9,11 +9,12 @@ on:
 jobs:
   publish:
     name: Publish
-    runs-on: macos-latest  # Changed from ubuntu-latest to macos-latest
+    runs-on: macos-latest
     permissions:
       contents: read
-      id-token: write   # Required for OIDC trusted publishing (npm + MCP Registry)
-
+      id-token: write
+    env:
+      XDG_CONFIG_HOME: ${{ runner.temp }}/xdg-config
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +82,8 @@ jobs:
           chmod +x ./mcp-publisher
           ./mcp-publisher --version
 
+      - name: Prepare mcp-publisher config dir
+        run: mkdir -p "$XDG_CONFIG_HOME"
       - name: Validate server.json
         run: ./mcp-publisher publish --dry-run
 
