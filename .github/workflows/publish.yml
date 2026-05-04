@@ -1,68 +1,44 @@
-name: Publish to npm
+name: Publish to npm and MCP Registry
 
 on:
   push:
     tags:
-      - "v*"
-  workflow_dispatch: {}
-
-permissions:
-  contents: read
-  # Required for OIDC trusted publishing to npm.
-  id-token: write
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   publish:
-    runs-on: macos-latest
+    name: Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Required for OIDC trusted publishing (npm + MCP Registry)
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-          cache: npm
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
 
-      - name: Verify tag matches package.json version
+      # OIDC trusted publishing requires npm >= 11.5.1.
+      # Node 22 ships with npm 10.x, so we upgrade explicitly.
+      - name: Upgrade npm (pinned)
+        run: npm install -g npm@11.9.0
+
+      - name: Verify tag matches package version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          VER="$(node -p "require('./package.json').version")"
-          echo "Tag version : $TAG"
-          echo "Package ver : $VER"
-          if [ "$TAG" != "$VER" ]; then
-            echo "::error::Tag v$TAG does not match package.json version $VER"
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
             exit 1
           fi
-
-      - name: Pre-flight — confirm package exists on npm
-        # Trusted publishing only authorizes pushes to packages that already
-        # exist on the registry. The very first version has to be published
-        # manually from a logged-in machine to bootstrap the package on npm.
-        # Running this workflow before that bootstrap will fail with an opaque
-        # 404 from npm AFTER signing a provenance attestation; this guard
-        # surfaces the actual problem before any signing happens.
-        run: |
-          PKG="$(node -p "require('./package.json').name")"
-          if ! npm view "$PKG" name --silent > /dev/null 2>&1; then
-            cat <<EOF
-          ::error::Package "$PKG" does not yet exist on npm.
-
-          Trusted publishing requires the package to already exist on the registry.
-          Bootstrap it once from a logged-in local machine:
-
-            npm login
-            npm publish --access public
-
-          Then configure the trusted publisher at:
-            https://www.npmjs.com/package/$PKG → Settings → Trusted Publishers
-
-          See the "Publishing → Troubleshooting" section of the README for details.
-          EOF
-            exit 1
-          fi
-          echo "OK: $PKG exists on npm — proceeding."
+          echo "Publishing version $PKG_VERSION"
 
       - name: Install
         run: npm ci
@@ -70,5 +46,34 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish (with provenance)
+      - name: Publish to npm
         run: npm publish --provenance --access public
+
+      # ─── MCP Registry publish ──────────────────────────────────────────────
+      # Runs only after npm publish succeeds. Same OIDC token, same trust model.
+      # No new secrets required.
+
+      - name: Sync server.json version with package.json
+        # `npm version` only bumps package.json. This keeps server.json's
+        # top-level version and each packages[].version field in sync, so
+        # tagging a release doesn't desync the two files.
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          jq --arg v "$VER" '.version = $v | .packages |= map(.version = $v)' \
+            server.json > server.json.tmp && mv server.json.tmp server.json
+          echo "server.json synced to $VER"
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher --version
+
+      - name: Validate server.json
+        run: ./mcp-publisher publish --dry-run
+
+      - name: Authenticate to MCP Registry (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
