@@ -9,7 +9,7 @@ on:
 jobs:
   publish:
     name: Publish
-    runs-on: ubuntu-latest
+    runs-on: macos-latest  # Changed from ubuntu-latest to macos-latest
     permissions:
       contents: read
       id-token: write   # Required for OIDC trusted publishing (npm + MCP Registry)
@@ -65,7 +65,7 @@ jobs:
 
       - name: Install mcp-publisher
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm6[...]'
             | tar xz mcp-publisher
           ./mcp-publisher --version
 
